@@ -1,0 +1,4 @@
+.claude
+.env.local
+*__pycache__/
+*.db
