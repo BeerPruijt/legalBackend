@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legalbackend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "psycopg[binary]",
+    "alembic",
+    "pydantic-settings",
+    "requests",
+    "lxml",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

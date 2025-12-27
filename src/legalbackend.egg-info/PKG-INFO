@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: legalbackend
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: psycopg[binary]
+Requires-Dist: alembic
+Requires-Dist: pydantic-settings
+Requires-Dist: requests
+Requires-Dist: lxml

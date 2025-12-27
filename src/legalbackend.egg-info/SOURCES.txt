@@ -1,0 +1,13 @@
+pyproject.toml
+src/app/__init__.py
+src/app/config.py
+src/app/database.py
+src/app/models/__init__.py
+src/app/models/base.py
+src/app/services/__init__.py
+src/app/services/rechtspraak_fetcher.py
+src/legalbackend.egg-info/PKG-INFO
+src/legalbackend.egg-info/SOURCES.txt
+src/legalbackend.egg-info/dependency_links.txt
+src/legalbackend.egg-info/requires.txt
+src/legalbackend.egg-info/top_level.txt
