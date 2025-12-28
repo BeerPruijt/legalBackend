@@ -1,29 +1,29 @@
 #!/usr/bin/env python
 """
-CLI script to sync ECLIs from rechtspraak.nl to the database.
+CLI script to sync cases from rechtspraak.nl to the database.
 
 Usage:
-    python -m app.cli.sync_eclis
-    python -m app.cli.sync_eclis --max 100
+    python -m app.cli.sync_cases
+    python -m app.cli.sync_cases --max 100
 """
 import argparse
 import logging
 import sys
 
 from app.database import SessionLocal
-from app.services.ecli_sync_service import sync_eclis
+from app.services.cases_sync_service import sync_cases
 
 
 def main() -> int:
-    """Main entry point for the ECLI sync CLI."""
+    """Main entry point for the cases sync CLI."""
     parser = argparse.ArgumentParser(
-        description="Sync ECLIs from rechtspraak.nl to the database"
+        description="Sync cases from rechtspraak.nl to the database"
     )
     parser.add_argument(
         "--max",
         type=int,
         default=None,
-        help="Maximum number of ECLIs to fetch (default: unlimited)",
+        help="Maximum number of cases to fetch (default: unlimited)",
     )
     args = parser.parse_args()
 
@@ -33,14 +33,14 @@ def main() -> int:
     )
     logger = logging.getLogger(__name__)
 
-    logger.info("Starting ECLI sync...")
+    logger.info("Starting cases sync...")
     if args.max:
-        logger.info(f"Limiting to {args.max} ECLIs")
+        logger.info(f"Limiting to {args.max} cases")
 
     try:
         db = SessionLocal()
         try:
-            result = sync_eclis(db, max_results=args.max)
+            result = sync_cases(db, max_results=args.max)
         finally:
             db.close()
 
