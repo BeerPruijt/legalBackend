@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 import requests
@@ -216,3 +217,103 @@ def get_sections(doc: etree._Element) -> list[str]:
     """Extract parablock sections from a document."""
     blocks = doc.xpath("//rs:parablock", namespaces=DOC_NS)
     return [etree.tostring(b, encoding="unicode", method="text").strip() for b in blocks if b.text or len(b)]
+
+
+# --- Structured uitspraak extraction ---
+
+@dataclass
+class Paragraph:
+    nr: str | None
+    text: str
+
+
+@dataclass
+class Section:
+    nr: str | None
+    title: str | None
+    paragraphs: list[Paragraph] = field(default_factory=list)
+
+
+@dataclass
+class Uitspraak:
+    sections: list[Section] = field(default_factory=list)
+
+
+def parse_uitspraak(doc: etree._Element) -> Uitspraak:
+    """
+    Parse uitspraak XML into structured sections and paragraphs.
+
+    Returns an Uitspraak with sections, each containing numbered paragraphs.
+    """
+    uitspraak_elem = doc.find(".//rs:uitspraak", DOC_NS)
+    if uitspraak_elem is None:
+        return Uitspraak()
+
+    result = Uitspraak()
+
+    # Find all sections
+    for section_elem in uitspraak_elem.findall(".//rs:section", DOC_NS):
+        section = _parse_section(section_elem)
+        result.sections.append(section)
+
+    # If no sections found, treat the whole uitspraak as one section
+    if not result.sections:
+        section = Section(nr=None, title=None)
+        section.paragraphs = _extract_paragraphs(uitspraak_elem)
+        if section.paragraphs:
+            result.sections.append(section)
+
+    return result
+
+
+def _parse_section(section_elem: etree._Element) -> Section:
+    """Parse a single section element."""
+    # Get section title and number
+    title_elem = section_elem.find("rs:title", DOC_NS)
+    nr = None
+    title = None
+
+    if title_elem is not None:
+        nr_elem = title_elem.find("rs:nr", DOC_NS)
+        if nr_elem is not None and nr_elem.text:
+            nr = nr_elem.text.strip()
+        # Title text is everything after the nr
+        title_text = etree.tostring(title_elem, encoding="unicode", method="text").strip()
+        # Remove the nr prefix if present
+        if nr and title_text.startswith(nr):
+            title = title_text[len(nr):].strip()
+        else:
+            title = title_text
+
+    section = Section(nr=nr, title=title)
+    section.paragraphs = _extract_paragraphs(section_elem)
+    return section
+
+
+def _extract_paragraphs(parent: etree._Element) -> list[Paragraph]:
+    """Extract paragraphs from paragroups and parablocks."""
+    paragraphs = []
+
+    # Process paragroups (numbered paragraph groups like 2.1, 2.2)
+    for paragroup in parent.findall(".//rs:paragroup", DOC_NS):
+        nr_elem = paragroup.find("rs:nr", DOC_NS)
+        nr = nr_elem.text.strip() if nr_elem is not None and nr_elem.text else None
+
+        # Collect all text from paras in this group
+        texts = []
+        for para in paragroup.findall(".//rs:para", DOC_NS):
+            text = etree.tostring(para, encoding="unicode", method="text").strip()
+            if text:
+                texts.append(text)
+
+        if texts:
+            paragraphs.append(Paragraph(nr=nr, text="\n".join(texts)))
+
+    # If no paragroups, fall back to direct paras
+    if not paragraphs:
+        for para in parent.findall(".//rs:para", DOC_NS):
+            text = etree.tostring(para, encoding="unicode", method="text").strip()
+            if text:
+                paragraphs.append(Paragraph(nr=None, text=text))
+
+    return paragraphs
