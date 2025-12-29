@@ -222,24 +222,24 @@ def get_sections(doc: etree._Element) -> list[str]:
 # --- Structured uitspraak extraction ---
 
 @dataclass
-class Paragraph:
+class StructuredParagraph:
     nr: str | None
     text: str
 
 
 @dataclass
-class Section:
+class StructuredSection:
     nr: str | None
     title: str | None
-    paragraphs: list[Paragraph] = field(default_factory=list)
+    paragraphs: list[StructuredParagraph] = field(default_factory=list)
 
 
 @dataclass
-class Uitspraak:
-    sections: list[Section] = field(default_factory=list)
+class StructuredUitspraak:
+    sections: list[StructuredSection] = field(default_factory=list)
 
 
-def parse_uitspraak(doc: etree._Element) -> Uitspraak:
+def parse_uitspraak_structured(doc: etree._Element) -> StructuredUitspraak:
     """
     Parse uitspraak XML into structured sections and paragraphs.
 
@@ -247,9 +247,9 @@ def parse_uitspraak(doc: etree._Element) -> Uitspraak:
     """
     uitspraak_elem = doc.find(".//rs:uitspraak", DOC_NS)
     if uitspraak_elem is None:
-        return Uitspraak()
+        return StructuredUitspraak()
 
-    result = Uitspraak()
+    result = StructuredUitspraak()
 
     # Find all sections
     for section_elem in uitspraak_elem.findall(".//rs:section", DOC_NS):
@@ -258,7 +258,7 @@ def parse_uitspraak(doc: etree._Element) -> Uitspraak:
 
     # If no sections found, treat the whole uitspraak as one section
     if not result.sections:
-        section = Section(nr=None, title=None)
+        section = StructuredSection(nr=None, title=None)
         section.paragraphs = _extract_paragraphs(uitspraak_elem)
         if section.paragraphs:
             result.sections.append(section)
@@ -266,7 +266,7 @@ def parse_uitspraak(doc: etree._Element) -> Uitspraak:
     return result
 
 
-def _parse_section(section_elem: etree._Element) -> Section:
+def _parse_section(section_elem: etree._Element) -> StructuredSection:
     """Parse a single section element."""
     # Get section title and number
     title_elem = section_elem.find("rs:title", DOC_NS)
@@ -285,12 +285,12 @@ def _parse_section(section_elem: etree._Element) -> Section:
         else:
             title = title_text
 
-    section = Section(nr=nr, title=title)
+    section = StructuredSection(nr=nr, title=title)
     section.paragraphs = _extract_paragraphs(section_elem)
     return section
 
 
-def _extract_paragraphs(parent: etree._Element) -> list[Paragraph]:
+def _extract_paragraphs(parent: etree._Element) -> list[StructuredParagraph]:
     """Extract paragraphs from paragroups and parablocks."""
     paragraphs = []
 
@@ -307,13 +307,58 @@ def _extract_paragraphs(parent: etree._Element) -> list[Paragraph]:
                 texts.append(text)
 
         if texts:
-            paragraphs.append(Paragraph(nr=nr, text="\n".join(texts)))
+            paragraphs.append(StructuredParagraph(nr=nr, text="\n".join(texts)))
 
     # If no paragroups, fall back to direct paras
     if not paragraphs:
         for para in parent.findall(".//rs:para", DOC_NS):
             text = etree.tostring(para, encoding="unicode", method="text").strip()
             if text:
-                paragraphs.append(Paragraph(nr=None, text=text))
+                paragraphs.append(StructuredParagraph(nr=None, text=text))
 
     return paragraphs
+
+def ensure_min_paragraph_length(
+    paragraphs: list[StructuredParagraph],
+    min_length: int,
+    max_length: int | None = None,
+) -> list[StructuredParagraph]:
+    """
+    Merge consecutive paragraphs until each meets min_length.
+    
+    When merging:
+    - Numbers are joined with "+" (e.g., "2.1+2.2")
+    - Texts are joined with newlines
+    
+    Paragraphs exceeding max_length after merging are dropped.
+    """
+    result = []
+    i = 0
+    
+    while i < len(paragraphs):
+        current_nr = paragraphs[i].nr
+        current_text = paragraphs[i].text
+        
+        # Try to merge until we reach min_length
+        while len(current_text) < min_length and i + 1 < len(paragraphs):
+            next_para = paragraphs[i + 1]
+            merged_text = current_text + "\n" + next_para.text
+            
+            if max_length and len(merged_text) > max_length:
+                break  # Can't merge without exceeding max
+            
+            current_text = merged_text
+            # Merge numbers: "2.1" + "2.2" -> "2.1+2.2"
+            if current_nr and next_para.nr:
+                current_nr = f"{current_nr}+{next_para.nr}"
+            elif next_para.nr:
+                current_nr = next_para.nr
+            i += 1
+        
+        # Only keep if within bounds
+        if len(current_text) >= min_length and (max_length is None or len(current_text) <= max_length):
+            result.append(StructuredParagraph(nr=current_nr, text=current_text))
+        
+        i += 1
+    
+    return result
